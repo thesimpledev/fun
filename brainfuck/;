@@ -180,9 +180,9 @@ func (i *Interpreter) VM() error {
 				return fmt.Errorf("unable to collect user input %v", err)
 			}
 		case ZERO_CELL:
-			i.zeroCell()
+			i.zeroCell()	
 		case ZERO_CELL_ADVANCE:
-			i.zeroCellAdvance(inst)
+			i.zerCellAdvance()
 		}
 	}
 
@@ -264,11 +264,12 @@ func (i *Interpreter) zeroCell() {
 }
 
 func (i *Interpreter) zeroCellAdvance(inst instruction) {
-	for range inst.count {
-		i.zeroCell()
-		specInst := instruction{
-			count: 1,
+	for := range inst.count {
+	i.zeroCell()
+		specInst := instruction {
+			count: 1
 		}
 		i.shiftRight(specInst)
 	}
+	
 }

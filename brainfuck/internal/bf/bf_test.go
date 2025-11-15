@@ -51,7 +51,7 @@ func TestExecuteInstructionsError(t *testing.T) {
 		t.Errorf("error constructing new interperter %v", err)
 	}
 	i.LoadInstructions("")
-	err = i.ExecutionLoop()
+	err = i.VM()
 	if err == nil {
 		t.Error("expected error for empty instructions, got nil")
 	}
@@ -65,7 +65,11 @@ func TestExecuteInstructionsShiftRight(t *testing.T) {
 	inst := ">x>"
 	want := 2
 	i.LoadInstructions(inst)
-	err = i.ExecutionLoop()
+	err = i.Compile()
+	if err != nil {
+		t.Error("exiected no error got error")
+	}
+	err = i.VM()
 	if err != nil {
 		t.Error("expected no error got error")
 	}
@@ -81,9 +85,11 @@ func TestShiftRight(t *testing.T) {
 		t.Errorf("error constructing new interperter %v", err)
 	}
 	want := 5
-	for range want {
-		i.shiftRight()
+	inst := instruction{
+		op:    INC_PTR,
+		count: want,
 	}
+	i.shiftRight(inst)
 
 	if i.pos != want {
 		t.Errorf("got position %d want position %d", i.pos, want)
@@ -98,7 +104,11 @@ func TestExecuteInstructionsShiftLeft(t *testing.T) {
 	inst := ">x><"
 	want := 1
 	i.LoadInstructions(inst)
-	err = i.ExecutionLoop()
+	err = i.Compile()
+	if err != nil {
+		t.Errorf("Compile got %v and expected no error", err)
+	}
+	err = i.VM()
 	if err != nil {
 		t.Error("expected no error got error")
 	}
@@ -114,13 +124,19 @@ func TestShiftLeft(t *testing.T) {
 		t.Errorf("error constructing new interperter %v", err)
 	}
 	want := 3
-	for range 5 {
-		i.shiftRight()
+	inst := instruction{
+		op:    INC_PTR,
+		count: 5,
 	}
 
-	for range 2 {
-		i.shiftLeft()
+	i.shiftRight(inst)
+
+	inst = instruction{
+		op:    DEC_PTR,
+		count: 2,
 	}
+
+	i.shiftLeft(inst)
 
 	if i.pos != want {
 		t.Errorf("got position %d want position %d", i.pos, want)
@@ -132,7 +148,11 @@ func TestShiftLeftNegative(t *testing.T) {
 	if err != nil {
 		t.Errorf("error constructing new interperter %v", err)
 	}
-	i.shiftLeft()
+	inst := instruction{
+		op:    DEC_PTR,
+		count: 1,
+	}
+	i.shiftLeft(inst)
 	want := 29_999
 
 	if i.pos != want {
@@ -147,7 +167,11 @@ func TestShiftRightOverflow(t *testing.T) {
 	}
 	want := 0
 	i.pos = 29_999
-	i.shiftRight()
+	inst := instruction{
+		op:    INC_PTR,
+		count: 1,
+	}
+	i.shiftRight(inst)
 
 	if i.pos != want {
 		t.Errorf("got %d, want %d", i.pos, want)
@@ -159,10 +183,14 @@ func TestExecuteInstructionsIncrement(t *testing.T) {
 	if err != nil {
 		t.Errorf("error constructing new interperter %v", err)
 	}
-	inst := ">+"
-	want := byte(1)
+	inst := "+++++"
+	want := byte(5)
 	i.LoadInstructions(inst)
-	err = i.ExecutionLoop()
+	err = i.Compile()
+	if err != nil {
+		t.Errorf("Compile got %v and expected no error", err)
+	}
+	err = i.VM()
 	if err != nil {
 		t.Error("expected no error got error")
 	}
@@ -177,7 +205,11 @@ func TestIncrement(t *testing.T) {
 	if err != nil {
 		t.Errorf("error constructing new interperter %v", err)
 	}
-	i.increment()
+	inst := instruction{
+		op:    INC_PTR,
+		count: 1,
+	}
+	i.increment(inst)
 	want := byte(1)
 	if i.tape[i.pos] != want {
 		t.Errorf("got %d, want %d", i.tape[i.pos], want)
@@ -192,7 +224,11 @@ func TestExecuteInstructionsDecrement(t *testing.T) {
 	inst := ">-"
 	want := byte(255)
 	i.LoadInstructions(inst)
-	err = i.ExecutionLoop()
+	err = i.Compile()
+	if err != nil {
+		t.Errorf("Compile got %v and expected no error", err)
+	}
+	err = i.VM()
 	if err != nil {
 		t.Errorf("expected no error got error %v", err)
 	}
@@ -207,7 +243,11 @@ func TestDecrement(t *testing.T) {
 	if err != nil {
 		t.Errorf("error constructing new interperter %v", err)
 	}
-	i.decrement()
+	inst := instruction{
+		op:    DEC_PTR,
+		count: 1,
+	}
+	i.decrement(inst)
 	want := byte(255)
 	if i.tape[i.pos] != want {
 		t.Errorf("got %d, want %d", i.tape[i.pos], want)
@@ -220,9 +260,17 @@ func TestOutput(t *testing.T) {
 	if err != nil {
 		t.Errorf("error constructing new interperter %v", err)
 	}
-	i.decrement()
+	inst := instruction{
+		op:    DEC_PTR,
+		count: 1,
+	}
+	i.decrement(inst)
 	want := string(byte(255))
-	i.output()
+	inst = instruction{
+		op:    OUTPUT,
+		count: 1,
+	}
+	i.output(inst)
 	got := buffer.String()
 
 	if got != want {
@@ -237,8 +285,12 @@ func TestExecuteInstructionOutput(t *testing.T) {
 		t.Errorf("error constructing new interperter %v", err)
 	}
 	i.LoadInstructions(">-.")
+	err = i.Compile()
+	if err != nil {
+		t.Errorf("Compile got %v and expected no error", err)
+	}
 	want := string(byte(255))
-	err = i.ExecutionLoop()
+	err = i.VM()
 	if err != nil {
 		t.Errorf("expected no error got error %v", err)
 	}
@@ -270,6 +322,16 @@ func TestParserLoop(t *testing.T) {
 			instructions: "+++++[>++++++++++<-]>+++.",
 			want:         "5",
 		},
+		{
+			name:         "Zero Out",
+			instructions: "+++++[-].",
+			want:         "\x00",
+		},
+		{
+			name:         "set 1 zero 1",
+			instructions: "+.>++[-].>.",
+			want:         "\x01\x00\x00",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -279,11 +341,11 @@ func TestParserLoop(t *testing.T) {
 				t.Errorf("error constructing new interperter %v", err)
 			}
 			i.LoadInstructions(tt.instructions)
-			err = i.ParserLoop()
+			err = i.Compile()
 			if err != nil {
 				t.Error("expected no error, got error")
 			}
-			err = i.ExecutionLoop()
+			err = i.VM()
 			if err != nil {
 				t.Error("expected no error, got error")
 			}
@@ -302,7 +364,7 @@ func TestClearInstructions(t *testing.T) {
 	}
 	i.LoadInstructions("+++++++++")
 	i.ClearInstructions()
-	err = i.ParserLoop()
+	err = i.Compile()
 	if err == nil {
 		t.Error("Error is nil and should not be")
 	}
@@ -338,11 +400,11 @@ func TestCollectUserInput(t *testing.T) {
 		t.Errorf("error constructing new interperter %v", err)
 	}
 	i.LoadInstructions(inst)
-	err = i.ParserLoop()
+	err = i.Compile()
 	if err != nil {
 		t.Error("expected no error, got error")
 	}
-	err = i.ExecutionLoop()
+	err = i.VM()
 	if err != nil {
 		t.Error("expected no error, got error")
 	}
@@ -382,7 +444,7 @@ func TestUnevenLoopsError(t *testing.T) {
 				t.Errorf("error constructing new interperter %v", err)
 			}
 			i.LoadInstructions(tt.inst)
-			err = i.ParserLoop()
+			err = i.Compile()
 			if err == nil && tt.err {
 				t.Error("expected error not none")
 			}
@@ -396,10 +458,10 @@ func TestFlushStackAndLoops(t *testing.T) {
 		t.Errorf("error constructing new interperter %v", err)
 	}
 	i.LoadInstructions("[[[[[[[][[][[")
-	_ = i.ParserLoop()
+	_ = i.Compile()
 	i.ClearInstructions()
 	i.LoadInstructions("[]")
-	err = i.ParserLoop()
+	err = i.Compile()
 	if err != nil {
 		t.Error("Got error expected none")
 	}
@@ -431,8 +493,8 @@ func TestReadError(t *testing.T) {
 		t.Fatal("failed to created interperter")
 	}
 	i.LoadInstructions(",.")
-	_ = i.ParserLoop()
-	err = i.ExecutionLoop()
+	_ = i.Compile()
+	err = i.VM()
 	if err == nil {
 		t.Error("expexted error, not none")
 	}

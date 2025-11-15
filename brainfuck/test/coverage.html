@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">brainfuck/internal/bf/bf.go (100.0%)</option>
+				<option value="file0">brainfuck/internal/bf/bf.go (94.2%)</option>
 				
 				<option value="file1">brainfuck/internal/stack/stack.go (100.0%)</option>
 				
@@ -96,29 +96,55 @@ const (
         tapeSize = 30_000
 )
 
+type opcode byte
+
+const (
+        INC_PTR opcode = iota
+        DEC_PTR
+        INC_VAL
+        DEC_VAL
+        OUTPUT
+        INPUT
+        JUMP_IF_ZERO
+        JUMP_IF_NOT_ZERO
+        ZERO_CELL
+        ZERO_CELL_ADVANCE
+        EMPTY
+        INIT
+)
+
+type instruction struct {
+        op     opcode
+        target int
+        count  int
+        symbol rune
+}
+
 type Interpreter struct {
+        byteCode     []instruction
+        prev         opcode
         tape         []byte
         pos          int
         instructions string
         w            io.Writer
-        loops        map[int]int
         stack        *stack.Stack
         reader       *bufio.Reader
 }
 
-func New(w io.Writer, r io.Reader) (*Interpreter, error) <span class="cov5" title="28">{
+func New(w io.Writer, r io.Reader) (*Interpreter, error) <span class="cov5" title="30">{
         if w == nil || r == nil </span><span class="cov1" title="2">{
                 return nil, errors.New("io.Writer and io.Reader cannot be null")
         }</span>
-        <span class="cov5" title="26">client := &amp;Interpreter{
+        <span class="cov5" title="28">client := &amp;Interpreter{
                 tape:   make([]byte, tapeSize),
                 w:      w,
                 reader: bufio.NewReader(r),
+                prev:   INIT,
         }
         return client, nil</span>
 }
 
-func (i *Interpreter) LoadInstructions(instructions string) <span class="cov4" title="18">{
+func (i *Interpreter) LoadInstructions(instructions string) <span class="cov5" title="20">{
         i.instructions = instructions
 }</span>
 
@@ -126,112 +152,178 @@ func (i *Interpreter) ClearInstructions() <span class="cov1" title="2">{
         i.instructions = ""
 }</span>
 
-func (i *Interpreter) ParserLoop() error <span class="cov4" title="11">{
+func (i *Interpreter) Compile() error <span class="cov4" title="18">{
         if len(i.instructions) == 0 </span><span class="cov1" title="1">{
                 return fmt.Errorf("instructions are empty")
         }</span>
 
-        <span class="cov3" title="10">i.stack = stack.New()
-        i.loops = make(map[int]int)
+        <span class="cov4" title="17">i.stack = stack.New()
+        instPos := 0
+        for num := 0; num &lt; len(i.instructions); num++ </span><span class="cov8" title="243">{
 
-        for num, instruction := range i.instructions </span><span class="cov7" title="210">{
-                switch instruction </span>{
-                case '[':<span class="cov5" title="30">
-                        i.stack.Push(num)</span>
-                case ']':<span class="cov4" title="21">
+                inst := instruction{
+                        count: 1,
+                }
+                inst.symbol = rune(i.instructions[num])
+                op, jump := getOpCode(num, inst.symbol, i.instructions)
+                if op == EMPTY </span><span class="cov4" title="12">{
+                        continue</span>
+                }
+                <span class="cov8" title="231">inst.op = op
+                num += jump
+                if i.prev == inst.op &amp;&amp; inst.op != JUMP_IF_ZERO &amp;&amp; inst.op != JUMP_IF_NOT_ZERO </span><span class="cov7" title="89">{
+                        i.byteCode[instPos-1].count++
+                        continue</span>
+                }
+
+                <span class="cov7" title="142">if inst.op == JUMP_IF_ZERO </span><span class="cov5" title="30">{
+                        i.stack.Push(instPos)
+                }</span>
+
+                <span class="cov7" title="142">if inst.op == JUMP_IF_NOT_ZERO </span><span class="cov5" title="21">{
                         start, exists := i.stack.Pop()
                         if !exists </span><span class="cov1" title="1">{
                                 return errors.New("invalid loop. all [ must have a matching ]")
                         }</span>
-                        <span class="cov4" title="20">i.loops[start] = num
-                        i.loops[num] = start</span>
-                default:<span class="cov7" title="159">
-                        continue</span>
+                        <span class="cov5" title="20">inst.target = start
+                        i.byteCode[start].target = instPos</span>
                 }
+
+                <span class="cov7" title="141">i.prev = inst.op
+                i.byteCode = append(i.byteCode, inst)
+                instPos++</span>
         }
 
-        <span class="cov3" title="9">if i.stack.Len() != 0 </span><span class="cov1" title="2">{
+        <span class="cov4" title="16">if i.stack.Len() != 0 </span><span class="cov1" title="2">{
                 return errors.New("invalid loop. all [ must have a matching ]")
         }</span>
 
-        <span class="cov3" title="7">return nil</span>
+        <span class="cov4" title="14">return nil</span>
 }
 
-func (i *Interpreter) ExecutionLoop() error <span class="cov4" title="11">{
+func getOpCode(pos int, symbol rune, inst string) (opcode, int) <span class="cov8" title="243">{
+        word3 := 3
+        word4 := 4
+
+        if pos+word3 &lt; len(inst) &amp;&amp; inst[pos:pos+word3] == "[-]" </span><span class="cov1" title="2">{
+                return ZERO_CELL, word3 - 1
+        }</span>
+
+        <span class="cov8" title="241">if pos+word4 &lt; len(inst) &amp;&amp; inst[pos:pos+word4] == "[-]&gt;" </span><span class="cov0" title="0">{
+                return ZERO_CELL_ADVANCE, word4 - 1
+        }</span>
+
+        <span class="cov8" title="241">switch symbol </span>{
+        case '&gt;':<span class="cov5" title="30">
+                return INC_PTR, 0</span>
+        case '&lt;':<span class="cov4" title="11">
+                return DEC_PTR, 0</span>
+        case '+':<span class="cov7" title="88">
+                return INC_VAL, 0</span>
+        case '-':<span class="cov5" title="25">
+                return DEC_VAL, 0</span>
+        case '.':<span class="cov5" title="22">
+                return OUTPUT, 0</span>
+        case ',':<span class="cov1" title="2">
+                return INPUT, 0</span>
+        case '[':<span class="cov5" title="30">
+                return JUMP_IF_ZERO, 0</span>
+        case ']':<span class="cov5" title="21">
+                return JUMP_IF_NOT_ZERO, 0</span>
+        default:<span class="cov4" title="12">
+                return EMPTY, 0</span>
+        }
+}
+
+func (i *Interpreter) VM() error <span class="cov4" title="13">{
         if len(i.instructions) == 0 </span><span class="cov1" title="1">{
                 return fmt.Errorf("instructions are empty")
         }</span>
-        <span class="cov3" title="10">for inst := 0; inst &lt; len(i.instructions); inst++ </span><span class="cov10" title="1206">{
-                switch i.instructions[inst] </span>{
-                case '&gt;':<span class="cov7" title="209">
-                        i.shiftRight()</span>
-                case '&lt;':<span class="cov7" title="195">
-                        i.shiftLeft()</span>
-                case '+':<span class="cov8" title="504">
-                        i.increment()</span>
-                case '-':<span class="cov6" title="84">
-                        i.decrement()</span>
-                case '.':<span class="cov4" title="17">
-                        i.output()</span>
-                case '[':<span class="cov6" title="97">
-                        inst = i.startLoop(inst)</span>
-                case ']':<span class="cov6" title="96">
-                        inst = i.endLoop(inst)</span>
-                case ',':<span class="cov1" title="2">
+        <span class="cov4" title="12">for num := 0; num &lt; len(i.byteCode); num++ </span><span class="cov10" title="696">{
+                inst := i.byteCode[num]
+                switch inst.op </span>{
+                case INC_PTR:<span class="cov8" title="197">
+                        i.shiftRight(inst)</span>
+                case DEC_PTR:<span class="cov7" title="99">
+                        i.shiftLeft(inst)</span>
+                case INC_VAL:<span class="cov8" title="189">
+                        i.increment(inst)</span>
+                case DEC_VAL:<span class="cov6" title="70">
+                        i.decrement(inst)</span>
+                case OUTPUT:<span class="cov5" title="20">
+                        i.output(inst)</span>
+                case JUMP_IF_ZERO:<span class="cov5" title="20">
+                        num = i.startLoop(num, inst)</span>
+                case JUMP_IF_NOT_ZERO:<span class="cov7" title="97">
+                        num = i.endLoop(num, inst)</span>
+                case INPUT:<span class="cov1" title="2">
                         err := i.collectUserInput()
                         if err != nil </span><span class="cov1" title="1">{
                                 return fmt.Errorf("unable to collect user input %v", err)
                         }</span>
-                default:<span class="cov1" title="2">
-                        continue</span>
+                case ZERO_CELL:<span class="cov1" title="2">
+                        i.zeroCell()</span>
+                case ZERO_CELL_ADVANCE:<span class="cov0" title="0">
+                        i.zeroCellAdvance(inst)</span>
                 }
         }
 
-        <span class="cov3" title="9">return nil</span>
+        <span class="cov4" title="11">return nil</span>
 }
 
-func (i *Interpreter) shiftRight() <span class="cov7" title="220">{
-        if i.pos == tapeSize-1 </span><span class="cov1" title="1">{
-                i.pos = 0
-                return
-        }</span>
-        <span class="cov7" title="219">i.pos++</span>
+func (i *Interpreter) shiftRight(inst instruction) <span class="cov8" title="200">{
+        for num := 0; num &lt; inst.count; num++ </span><span class="cov8" title="221">{
+
+                if i.pos == tapeSize-1 </span><span class="cov1" title="1">{
+                        i.pos = 0
+                        continue</span>
+                }
+                <span class="cov8" title="220">i.pos++</span>
+        }
 }
 
-func (i *Interpreter) shiftLeft() <span class="cov7" title="198">{
-        if i.pos == 0 </span><span class="cov1" title="1">{
-                i.pos = tapeSize - 1
-                return
-        }</span>
-        <span class="cov7" title="197">i.pos--</span>
+func (i *Interpreter) shiftLeft(inst instruction) <span class="cov7" title="101">{
+        for num := 0; num &lt; inst.count; num++ </span><span class="cov8" title="198">{
+                if i.pos == 0 </span><span class="cov1" title="1">{
+                        i.pos = tapeSize - 1
+                        continue</span>
+                }
+                <span class="cov8" title="197">i.pos--</span>
+        }
 }
 
-func (i *Interpreter) increment() <span class="cov8" title="505">{
-        i.tape[i.pos]++
-}</span>
-
-func (i *Interpreter) decrement() <span class="cov6" title="86">{
-        i.tape[i.pos]--
-}</span>
-
-func (i *Interpreter) output() <span class="cov4" title="18">{
-        _, _ = fmt.Fprintf(i.w, "%c", i.tape[i.pos])
-}</span>
-
-func (i *Interpreter) startLoop(inst int) int <span class="cov6" title="97">{
-        if i.tape[i.pos] == 0 </span><span class="cov1" title="1">{
-                return i.loops[inst]
+func (i *Interpreter) increment(inst instruction) <span class="cov8" title="190">{
+        for num := 0; num &lt; inst.count; num++ </span><span class="cov9" title="517">{
+                i.tape[i.pos]++
         }</span>
-
-        <span class="cov6" title="96">return inst</span>
 }
 
-func (i *Interpreter) endLoop(inst int) int <span class="cov6" title="96">{
-        if i.tape[i.pos] != 0 </span><span class="cov6" title="77">{
-                return i.loops[inst] - 1
+func (i *Interpreter) decrement(inst instruction) <span class="cov6" title="72">{
+        for num := 0; num &lt; inst.count; num++ </span><span class="cov7" title="86">{
+                i.tape[i.pos]--
+        }</span>
+}
+
+func (i *Interpreter) output(inst instruction) <span class="cov5" title="21">{
+        for range inst.count </span><span class="cov5" title="22">{
+                _, _ = fmt.Fprintf(i.w, "%c", i.tape[i.pos])
+        }</span>
+}
+
+func (i *Interpreter) startLoop(pos int, inst instruction) int <span class="cov5" title="20">{
+        if i.tape[i.pos] != 0 </span><span class="cov5" title="19">{
+                return pos
         }</span>
 
-        <span class="cov4" title="19">return inst</span>
+        <span class="cov1" title="1">return inst.target - 1</span>
+}
+
+func (i *Interpreter) endLoop(pos int, inst instruction) int <span class="cov7" title="97">{
+        if i.tape[i.pos] == 0 </span><span class="cov5" title="20">{
+                return pos
+        }</span>
+
+        <span class="cov6" title="77">return inst.target</span>
 }
 
 func (i *Interpreter) collectUserInput() error <span class="cov1" title="2">{
@@ -248,6 +340,20 @@ func (i *Interpreter) readChar() (rune, error) <span class="cov2" title="3">{
         char, _, err := i.reader.ReadRune()
         return char, err
 }</span>
+
+func (i *Interpreter) zeroCell() <span class="cov1" title="2">{
+        i.tape[i.pos] = 0
+}</span>
+
+func (i *Interpreter) zeroCellAdvance(inst instruction) <span class="cov0" title="0">{
+        for range inst.count </span><span class="cov0" title="0">{
+                i.zeroCell()
+                specInst := instruction{
+                        count: 1,
+                }
+                i.shiftRight(specInst)
+        }</span>
+}
 </pre>
 		
 		<pre class="file" id="file1" style="display: none">// Package stack holds our stack

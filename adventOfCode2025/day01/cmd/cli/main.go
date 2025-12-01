@@ -24,16 +24,22 @@ func new(start int) safe {
 	}
 }
 
-func normalize(n int) int {
+func (s *safe) normalize(n int) int {
+	if n > 100 {
+		s.combination += int(n / 100)
+	}
 	return n % 100
 }
 
 func (s *safe) left(n int) int {
-	n = normalize(n)
+	n = s.normalize(n)
 	temp := s.dial - n
 	if temp >= 0 {
 		s.dial = temp
 		return temp
+	}
+	if s.dial != 0 {
+		s.combination++
 	}
 
 	s.dial = max + temp + 1
@@ -41,13 +47,16 @@ func (s *safe) left(n int) int {
 }
 
 func (s *safe) right(n int) int {
-	n = normalize(n)
+	n = s.normalize(n)
 	temp := s.dial + n
 	if temp <= 99 {
 		s.dial = temp
 		return s.dial
 	}
 	s.dial = temp - max - 1
+	if s.dial != 0 {
+		s.combination++
+	}
 	return s.dial
 }
 
@@ -99,7 +108,7 @@ func (s *safe) parse() (int, error) {
 
 func main() {
 	safe := new(50)
-	safe.load("datareal")
+	_ = safe.load("datareal")
 	combo, err := safe.parse()
 	if err != nil {
 		fmt.Println(err)

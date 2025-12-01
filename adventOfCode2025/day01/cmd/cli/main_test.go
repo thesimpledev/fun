@@ -119,7 +119,7 @@ func TestLoad(t *testing.T) {
 
 func TestParser(t *testing.T) {
 	s := new(50)
-	want := 3
+	want := 6
 	err := s.load("data")
 	if err != nil {
 		t.Errorf("unable to load file %s", err.Error())
@@ -159,8 +159,9 @@ func TestNormalize(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		s := new(50)
 		t.Run(tt.name, func(t *testing.T) {
-			got := normalize(tt.num)
+			got := s.normalize(tt.num)
 
 			if got != tt.want {
 				t.Errorf("got %d want %d", got, tt.want)

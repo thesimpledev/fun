@@ -1,0 +1,24 @@
+mode: atomic
+day03/main.go:10.53,12.23 2 9
+day03/main.go:12.23,14.25 2 134
+day03/main.go:14.25,16.4 1 134
+day03/main.go:19.2,21.14 2 9
+day03/main.go:21.14,24.39 3 29
+day03/main.go:24.39,25.20 1 162
+day03/main.go:25.20,26.10 1 7
+day03/main.go:29.4,29.31 1 155
+day03/main.go:29.31,32.10 3 20
+day03/main.go:38.2,39.25 2 9
+day03/main.go:39.25,41.3 1 108
+day03/main.go:43.2,43.8 1 9
+day03/main.go:46.55,48.17 2 1
+day03/main.go:48.17,51.3 2 0
+day03/main.go:53.2,55.21 2 1
+day03/main.go:55.21,57.3 1 4
+day03/main.go:59.2,59.8 1 1
+day03/main.go:62.54,63.27 1 1
+day03/main.go:63.27,65.18 2 4
+day03/main.go:65.18,68.4 2 0
+day03/main.go:69.3,69.15 1 4
+day03/main.go:71.2,71.8 1 1
+day03/main.go:74.13,78.2 3 0

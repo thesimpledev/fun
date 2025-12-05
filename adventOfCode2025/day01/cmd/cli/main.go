@@ -25,7 +25,7 @@ func new(start int) safe {
 }
 
 func (s *safe) normalize(n int) int {
-	if n > 100 {
+	if n >= 100 {
 		s.combination += int(n / 100)
 	}
 	return n % 100
